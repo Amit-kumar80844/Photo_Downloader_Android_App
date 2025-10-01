@@ -1,9 +1,11 @@
-package com.example.photodownloader.data.local
+package com.example.photodownloader.domain.room
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.OnConflictStrategy
+import com.example.photodownloader.data.local.DownloadedImage
+import com.example.photodownloader.data.local.PreviousSearch
 import kotlinx.coroutines.flow.Flow
 
 @Dao

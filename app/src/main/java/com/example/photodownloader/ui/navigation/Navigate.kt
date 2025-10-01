@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.photodownloader.ui.imageSearch.HomeScreen
 
 @Composable
 fun Navigate(
@@ -11,10 +12,13 @@ fun Navigate(
 ){
     NavHost(
         navController = navController,
-        startDestination = NavGraph.Splash.route
+        startDestination = NavGraph.ImageSearch.route
     ) {
+        /*composable(route = NavGraph.Splash.route) {
+            SplashScreen(navController = navController)
+        }*/
         composable(route = NavGraph.Splash.route) {
-
+            HomeScreen(navController = navController)
         }
     }
 }

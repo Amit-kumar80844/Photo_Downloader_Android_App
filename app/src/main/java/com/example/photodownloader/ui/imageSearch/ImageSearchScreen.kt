@@ -21,14 +21,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 
+@Composable
+fun HomeScreen(
+    navController: NavHostController
+){
+    PhotoDownloaderApp()
+}
 
 @Preview
 @Composable
 fun PhotoDownloaderApp() {
     MaterialTheme(colorScheme = lightColorScheme()) {
         Scaffold(
-            topBar = { AppHeader() },
+            topBar = { Header() },
             bottomBar = { BottomNavBar() }
         ) { innerPadding ->
             MainContent(Modifier.padding(innerPadding))
@@ -38,7 +45,7 @@ fun PhotoDownloaderApp() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppHeader() {
+fun Header() {
     TopAppBar(
         title = {
             Text(
