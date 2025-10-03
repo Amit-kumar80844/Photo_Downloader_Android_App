@@ -21,25 +21,60 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 
 @Composable
 fun HomeScreen(
-    navController: NavHostController
-){
-    PhotoDownloaderApp()
+    navController: NavHostController,
+    viewModel: ImageScreenViewModel = hiltViewModel()
+) {
+    val currentState = viewModel.state
+    when (currentState) {
+        is State.ImageSearch -> {
+            PhotoDownloaderScreen()
+        }
+
+        is State.ImageDetail -> {
+            ImageDetailsScreen(navGraph = navController)
+        }
+
+        is State.ImageChoose -> {
+            SearchResultsScreen()
+        }
+    }
 }
 
+@Composable
+fun PhotoDownloaderScreen() {
+    val viewModel: ImageScreenViewModel = hiltViewModel()
+    val currentState = viewModel.imageSearchState
+    when (currentState) {
+        is ImageSearchEvent.Search -> {
+
+        }
+        is ImageSearchEvent.GoToSettings -> {
+
+        }
+
+        is ImageSearchEvent.GoToDownloads -> {
+
+        }
+
+        is ImageSearchEvent.Idle -> {
+            PhotoDownloader()
+        }
+    }
+}
 @Preview
 @Composable
-fun PhotoDownloaderApp() {
-    MaterialTheme(colorScheme = lightColorScheme()) {
-        Scaffold(
-            topBar = { Header() },
-            bottomBar = { BottomNavBar() }
-        ) { innerPadding ->
-            MainContent(Modifier.padding(innerPadding))
-        }
+fun PhotoDownloader() {
+    Scaffold(
+        topBar = { Header() },
+        bottomBar = { BottomNavBar() }
+    ) { innerPadding ->
+        MainContent(Modifier.padding(innerPadding))
     }
 }
 
@@ -54,11 +89,6 @@ fun Header() {
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.onBackground
             )
-        },
-        actions = {
-            IconButton(onClick = { /* TODO: Search action */ }) {
-                Icon(Icons.Default.Search, contentDescription = "Search")
-            }
         }
     )
 }
@@ -72,19 +102,30 @@ fun MainContent(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         item { SearchBar() }
-        item { SuggestedSection() }
+        item { SuggestedSection(hiltViewModel()) }
         item { SearchHistorySection() }
     }
 }
 
 @Composable
-fun SearchBar() {
+fun SearchBar(
+    isLoading: Boolean = false
+) {
     var query by remember { mutableStateOf("") }
     OutlinedTextField(
         value = query,
         onValueChange = { query = it },
         placeholder = { Text("Search for images") },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon  = {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Icon(Icons.Default.Search, contentDescription = null)
+            }
+        },
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
@@ -94,8 +135,10 @@ fun SearchBar() {
 }
 
 @Composable
-fun SuggestedSection() {
-    val suggestions = listOf("Nature", "Cars", "Animals", "Wallpapers")
+fun SuggestedSection(
+    viewModel: ImageScreenViewModel
+) {
+    val suggestions = viewModel.suggestion
     Column {
         Text(
             "Suggested",
@@ -109,7 +152,7 @@ fun SuggestedSection() {
         ) {
             suggestions.forEach { label ->
                 AssistChip(
-                    onClick = { /* TODO */ },
+                    onClick = { /* TODO */ },// for search to change with it
                     label = { Text(label) },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
@@ -122,8 +165,10 @@ fun SuggestedSection() {
 }
 
 @Composable
-fun SearchHistorySection() {
-    val history = listOf("Mountain landscape", "City skyline", "Cute puppies", "Abstract art")
+fun SearchHistorySection(
+    viewModel: ImageScreenViewModel = hiltViewModel()
+) {
+    val history = viewModel.searchHistory
     Column {
         Text(
             "Search History",
@@ -165,7 +210,9 @@ fun SearchHistorySection() {
 }
 
 @Composable
-fun BottomNavBar() {
+fun BottomNavBar(
+    isLoading: Boolean = false
+) {
     NavigationBar {
         NavigationBarItem(
             selected = true,
@@ -180,7 +227,19 @@ fun BottomNavBar() {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.primary)
+                    if (!isLoading) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             },
             label = { Text("Search", fontSize = 12.sp) }

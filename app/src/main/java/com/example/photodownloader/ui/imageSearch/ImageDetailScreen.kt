@@ -15,20 +15,62 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Wallpaper
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import coil.compose.rememberAsyncImagePainter
+
+@Composable
+fun ImageDetailsScreen(
+    navGraph: NavHostController
+) {
+    val viewModel: ImageScreenViewModel = hiltViewModel()
+    val currentState = viewModel.imageDetailState
+    var isLoading: Boolean by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        when(currentState){
+            is ImageDetailEvent.Idle -> {
+
+            }
+            is ImageDetailEvent.DownloadImage -> {
+                // Handle download image
+            }
+            is ImageDetailEvent.SetAsWallpaper -> {
+                // Handle set as wallpaper
+            }
+            is ImageDetailEvent.ShareImage -> {
+                // Handle share image
+            }
+            is ImageDetailEvent.GoBack -> {
+
+            }
+        }
+    }
+}
+
 
 @Preview
 @Composable
-fun ImageDetailsScreen() {
+fun ImageDetails(
+    isLoading: Boolean = false
+) {
     Scaffold(
-        topBar = { DetailsHeader() }
+        topBar = { DetailsHeader(isLoading) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -48,12 +90,24 @@ fun ImageDetailsScreen() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailsHeader() {
+fun DetailsHeader(
+    isLoading: Boolean = false
+) {
     TopAppBar(
         title = { Text("Image Details", style = MaterialTheme.typography.titleMedium) },
         navigationIcon = {
-            IconButton(onClick = { /* TODO: Back */ }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            if (isLoading) {
+                Box(modifier = Modifier.padding(start = 12.dp)) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            } else {
+                IconButton(onClick = { /* TODO: Back */ }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
             }
         },
         actions = {
