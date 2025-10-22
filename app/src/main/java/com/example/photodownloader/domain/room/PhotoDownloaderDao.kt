@@ -36,6 +36,4 @@ interface PhotoDownloaderDao {
     @Query("DELETE FROM previous_search WHERE id = :id")
     suspend fun deletePreviousSearchById(id: Int)
 
-    @Query("DELETE FROM previous_search")
-    suspend fun clearAllPreviousSearches()
 }

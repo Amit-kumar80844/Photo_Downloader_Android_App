@@ -17,7 +17,7 @@ fun Navigate(
         /*composable(route = NavGraph.Splash.route) {
             SplashScreen(navController = navController)
         }*/
-        composable(route = NavGraph.Splash.route) {
+        composable(route = NavGraph.ImageSearch.route) {
             HomeScreen(navController = navController)
         }
     }

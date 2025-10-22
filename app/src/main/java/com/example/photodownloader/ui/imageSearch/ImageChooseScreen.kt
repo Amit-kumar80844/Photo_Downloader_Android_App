@@ -3,184 +3,166 @@ package com.example.photodownloader.ui.imageSearch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.ui.tooling.preview.Preview
 import coil.compose.rememberAsyncImagePainter
 
 @Composable
-fun SearchResultsScreen() {
-     val viewModel: ImageScreenViewModel = hiltViewModel()
-    val currentState = viewModel.imageChooseState
-    var isLoading: Boolean by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        when(currentState){
-            is ImageChooseEvent.Idle->{
-
-            }
-            is ImageChooseEvent.Search->{
-
-            }
-            is ImageChooseEvent.LoadMore->{
-
-            }
-            is ImageChooseEvent.GoBack->{
-
-            }
-        }
-    }
-}
-
-@Preview
-@Composable
-fun SearchResult() {
-    var text by remember { mutableStateOf("Nature") }
+fun ImageChooseScreen(
+    uiState: ImageUiState,
+    onEvent: (UiEvent) -> Unit
+) {
     Scaffold(
         topBar = {
-            SearchBar(
-                query = text,
-                onQueryChange = { text = it },
-                onSearch = { /* Handle search action */ }
-            )
+            Column(
+                modifier = Modifier.padding(5.dp,10.dp)
+            ){
+                CommonSearchBar(
+                    query = uiState.currentSearchQuery,
+                    isLoading = uiState.isSearching,
+                    onQueryChange = { onEvent(UiEvent.OnSearchQueryChange(it)) },
+                    onSearch = { onEvent(UiEvent.OnSearchSubmit(uiState.currentSearchQuery)) },
+                    onBackPress = { onEvent(UiEvent.OnBackPress) },
+                    showBackButton = true
+                )
+            }
         }
     ) { innerPadding ->
-        PhotoGrid(
-            modifier = Modifier.padding(innerPadding),
-            photos = samplePhotos()
-        )
-    }
-}
-
-@Composable
-fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    onBack: () -> Unit = {},
-    isLoading: Boolean = false
-) {
-    val focusManager = LocalFocusManager.current
-    Surface(
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
-        modifier = Modifier
-    ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            placeholder = { Text("Search images") },
-            leadingIcon = {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    modifier = Modifier.clickable { onBack() }
-                )
-            },
-            trailingIcon = {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (uiState.currentImages.isEmpty() && !uiState.isLoading) {
+                // Empty state
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "No images found",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                } else {
-                    Icon(
-                        Icons.Outlined.Search,
-                        contentDescription = "Search",
-                        modifier = Modifier.clickable { onSearch() }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Try a different search query",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            },
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
-            keyboardActions = KeyboardActions(onSearch = {
-                focusManager.clearFocus()
-                onSearch()
-            }),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            shape = RoundedCornerShape(28.dp),
-            singleLine = true
-        )
+            } else {
+                PhotoGrid(
+                    photos = uiState.currentImages,
+                    onImageClick = { url, index ->
+                        onEvent(UiEvent.OnImageClick(url, index))
+                    }
+                )
+            }
+        }
     }
 }
 
+@Preview(showBackground = true)
 @Composable
-fun PhotoGrid(modifier: Modifier = Modifier, photos: List<String>) {
+fun ImageChooseScreenPreview() {
+    ImageChooseScreen(
+        uiState = ImageUiState(
+            currentSearchQuery = "Kittens",
+            currentImages = listOf(
+                "https://via.placeholder.com/400/FF0000/FFFFFF?Text=Image1",
+                "https://via.placeholder.com/400/00FF00/000000?Text=Image2",
+                "https://via.placeholder.com/400/0000FF/FFFFFF?Text=Image3",
+                "https://via.placeholder.com/400/FFFF00/000000?Text=Image4",
+                "https://via.placeholder.com/400/FF00FF/FFFFFF?Text=Image5",
+                "https://via.placeholder.com/400/00FFFF/000000?Text=Image6"
+            ),
+            isSearching = false
+        ),
+        onEvent = {}
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ImageChooseScreenEmptyPreview() {
+    ImageChooseScreen(
+        uiState = ImageUiState(
+            currentSearchQuery = "Something that does not exist",
+            currentImages = emptyList(),
+            isSearching = false
+        ),
+        onEvent = {}
+    )
+}
+
+
+@Composable
+fun PhotoGrid(
+    photos: List<String>,
+    onImageClick: (String, Int) -> Unit
+) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 150.dp),
-        contentPadding = PaddingValues(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.fillMaxSize()
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        items(photos) { url ->
-            PhotoCard(url = url)
+        itemsIndexed(photos) { index, url ->
+            PhotoCard(
+                url = url,
+                onClick = { onImageClick(url, index) }
+            )
         }
     }
 }
 
 @Composable
-fun PhotoCard(url: String) {
-    Box(
+fun PhotoCard(
+    url: String,
+    onClick: () -> Unit
+) {
+    Card(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Image(
-            painter = rememberAsyncImagePainter(url),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
-        )
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Image(
+                painter = rememberAsyncImagePainter(
+                    model = url,
+                    error = rememberAsyncImagePainter("https://via.placeholder.com/400")
+                ),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(12.dp))
+            )
+        }
     }
 }
-
-fun samplePhotos(): List<String> = listOf(
-    "https://picsum.photos/id/1018/400/400",
-    "https://picsum.photos/id/1025/400/400",
-    "https://picsum.photos/id/1035/400/400",
-    "https://picsum.photos/id/1043/400/400",
-    "https://picsum.photos/id/1050/400/400",
-    "https://picsum.photos/id/1062/400/400"
-)

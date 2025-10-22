@@ -2,172 +2,162 @@ package com.example.photodownloader.ui.imageSearch
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Wallpaper
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.navigation.NavHostController
+import androidx.compose.ui.tooling.preview.Preview
 import coil.compose.rememberAsyncImagePainter
-
-@Composable
-fun ImageDetailsScreen(
-    navGraph: NavHostController
-) {
-    val viewModel: ImageScreenViewModel = hiltViewModel()
-    val currentState = viewModel.imageDetailState
-    var isLoading: Boolean by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        when(currentState){
-            is ImageDetailEvent.Idle -> {
-
-            }
-            is ImageDetailEvent.DownloadImage -> {
-                // Handle download image
-            }
-            is ImageDetailEvent.SetAsWallpaper -> {
-                // Handle set as wallpaper
-            }
-            is ImageDetailEvent.ShareImage -> {
-                // Handle share image
-            }
-            is ImageDetailEvent.GoBack -> {
-
-            }
-        }
-    }
-}
-
-
-@Preview
-@Composable
-fun ImageDetails(
-    isLoading: Boolean = false
-) {
-    Scaffold(
-        topBar = { DetailsHeader(isLoading) }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-        ) {
-            ImagePreview(
-                url = "https://picsum.photos/id/1018/800/600"
-            )
-            ActionButtons()
-            RelatedImagesGrid(
-                images = sampleRelatedImages()
-            )
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailsHeader(
-    isLoading: Boolean = false
+fun ImageDetailScreen(
+    imageUrl: String,
+    uiState: ImageUiState,
+    onEvent: (UiEvent) -> Unit
 ) {
-    TopAppBar(
-        title = { Text("Image Details", style = MaterialTheme.typography.titleMedium) },
-        navigationIcon = {
-            if (isLoading) {
-                Box(modifier = Modifier.padding(start = 12.dp)) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onSurface
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Image Details",
+                        style = MaterialTheme.typography.titleMedium
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { onEvent(UiEvent.OnBackPress) }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
                 }
-            } else {
-                IconButton(onClick = { /* TODO: Back */ }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            }
-        },
-        actions = {
-            IconButton(onClick = { /* TODO: Search */ }) {
-                Icon(Icons.Default.Search, contentDescription = "Search")
-            }
+            )
         }
-    )
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Image Preview
+            ImagePreview(url = imageUrl)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action Buttons
+            ActionButtons(
+                onDownload = { onEvent(UiEvent.OnDownloadImage(imageUrl)) },
+                onShare = { onEvent(UiEvent.OnShareImage(imageUrl)) },
+                onSetWallpaper = { onEvent(UiEvent.OnSetWallpaper(imageUrl)) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            ImageInfoSection(imageUrl = imageUrl)
+        }
+    }
 }
 
 @Composable
 fun ImagePreview(url: String) {
-    Image(
-        painter = rememberAsyncImagePainter(url),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(4f / 3f)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-    )
+            .aspectRatio(4f / 3f),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Image(
+                painter = rememberAsyncImagePainter(
+                    model = url,
+                    error = rememberAsyncImagePainter("https://via.placeholder.com/800x600")
+                ),
+                contentDescription = "Selected image",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 }
 
 @Composable
-fun ActionButtons() {
+fun ActionButtons(
+    onDownload: () -> Unit,
+    onShare: () -> Unit,
+    onSetWallpaper: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Download and Share buttons in a row
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Button(
-                onClick = { /* TODO: Download */ },
+                onClick = onDownload,
                 modifier = Modifier.weight(1f),
-                shape = CircleShape
+                shape = CircleShape,
+                contentPadding = PaddingValues(vertical = 12.dp)
             ) {
-                Icon(Icons.Default.Download, contentDescription = null)
+                Icon(
+                    Icons.Default.Download,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(Modifier.width(8.dp))
                 Text("Download")
             }
+
             OutlinedButton(
-                onClick = { /* TODO: Share */ },
+                onClick = { onShare() },
                 modifier = Modifier.weight(1f),
-                shape = CircleShape
+                shape = CircleShape,
+                contentPadding = PaddingValues(vertical = 12.dp)
             ) {
-                Icon(Icons.Default.Share, contentDescription = null)
+                Icon(
+                    Icons.Default.Share,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(Modifier.width(8.dp))
                 Text("Share")
             }
         }
-        OutlinedButton(
-            onClick = { /* TODO: Set as Wallpaper */ },
+
+        // Set Wallpaper button
+        Button(
+            onClick = onSetWallpaper,
             modifier = Modifier.fillMaxWidth(),
-            shape = CircleShape
+            shape = CircleShape,
+            contentPadding = PaddingValues(vertical = 12.dp)
         ) {
-            Icon(Icons.Default.Wallpaper, contentDescription = null)
+            Icon(
+                Icons.Default.Wallpaper,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
             Spacer(Modifier.width(8.dp))
             Text("Set as Wallpaper")
         }
@@ -175,42 +165,22 @@ fun ActionButtons() {
 }
 
 @Composable
-fun RelatedImagesGrid(images: List<String>) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            "Related Images",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 120.dp),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(images) { url ->
-                Image(
-                    painter = rememberAsyncImagePainter(url),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { /* TODO: Open details */ }
-                )
-            }
-        }
-    }
+fun ImageInfoSection(imageUrl: String) {
+    Text(
+        text = "Image URL: $imageUrl",
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(16.dp)
+    )
 }
 
-fun sampleRelatedImages(): List<String> = listOf(
-    "https://picsum.photos/id/1025/400/400",
-    "https://picsum.photos/id/1035/400/400",
-    "https://picsum.photos/id/1043/400/400",
-    "https://picsum.photos/id/1050/400/400",
-    "https://picsum.photos/id/1062/400/400",
-    "https://picsum.photos/id/1074/400/400"
-)
-
-
+@Preview(showBackground = true)
+@Composable
+fun ImageDetailScreenPreview() {
+    // Use a placeholder image URL for the preview
+    val sampleImageUrl = "https://via.placeholder.com/800x600"
+    ImageDetailScreen(
+        imageUrl = sampleImageUrl,
+        uiState = ImageUiState(), // Assuming a default constructor
+        onEvent = {} // No-op for preview
+    )
+}

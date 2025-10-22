@@ -1,67 +1,294 @@
 package com.example.photodownloader.ui.imageSearch
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.photodownloader.data.local.PreviousSearch
+import com.example.photodownloader.data.remote.APIResponse
 import com.example.photodownloader.domain.remote.ImageRepository
+import com.example.photodownloader.domain.room.PhotoDownloaderDao
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.collections.mutableMapOf
 
-sealed class State {
-    object ImageSearch : State()// ideal screen with landing and search bar
-    data class ImageDetail(val imageUrl: String) : State()// image detail screen with url
-    data class ImageChoose(val images: List<List<String>>) : State()//list of images to choose
+/* -----------------------------------------------------------
+   SCREEN NAVIGATION STATES
+   ----------------------------------------------------------- */
+sealed class Screen {
+    object ImageSearch : Screen()
+    data class ImageChoose(val searchQuery: String) : Screen()
+    data class ImageDetail(val imageUrl: String, val imageIndex: Int) : Screen()
 }
 
-sealed class ImageDetailEvent {
-    object Idle : ImageDetailEvent() // idle state
-    data class DownloadImage(val url: String) : ImageDetailEvent()
-    data class SetAsWallpaper(val url: String) : ImageDetailEvent()
-    data class ShareImage(val url: String) : ImageDetailEvent()
-    object GoBack : ImageDetailEvent()
+/* -----------------------------------------------------------
+   UI STATE
+   ----------------------------------------------------------- */
+data class ImageUiState(
+    val screen: Screen = Screen.ImageSearch,
+    val currentSearchQuery: String = "",
+    val isLoading: Boolean = false,
+    val isSearching: Boolean = false,
+    val errorMessage: String? = null,
+    val suggestions: List<String> = listOf(
+        "Backgrounds", "Fashion", "Nature", "Science", "Education",
+        "Feelings", "Religion", "Places", "Animals", "Sports", "Buildings"
+    ),
+    val previousSearches: List<PreviousSearch> = emptyList(),
+    val currentImages:List<String> = emptyList()
+)
+
+/* -----------------------------------------------------------
+   UI EVENTS
+   ----------------------------------------------------------- */
+sealed class UiEvent {
+    data class OnSearchQueryChange(val query: String) : UiEvent()
+    data class OnSearchSubmit(val query: String) : UiEvent()
+    data class OnSuggestionClick(val suggestion: String) : UiEvent()
+    data class OnPreviousSearchClick(val search: PreviousSearch) : UiEvent()
+    data class OnDeletePreviousSearch(val searchId: Int) : UiEvent()
+    data class OnImageClick(val imageUrl: String, val imageIndex: Int) : UiEvent()
+    object OnBackPress : UiEvent()
+    data class OnDownloadImage(val url: String) : UiEvent()
+    data class OnShareImage(val url: String) : UiEvent()
+    data class OnSetWallpaper(val url: String) : UiEvent()
+    object OnNavigateToSettings : UiEvent()
+    object OnNavigateToDownloads : UiEvent()
+    object ClearError : UiEvent()
 }
 
-sealed class ImageChooseEvent {
-    object Idle : ImageChooseEvent()
-    object Search : ImageChooseEvent()
-    object LoadMore : ImageChooseEvent()
-    object GoBack : ImageChooseEvent()
-}
-
-sealed class ImageSearchEvent {
-    object Idle : ImageSearchEvent()
-    object Search : ImageSearchEvent()
-    object GoToSettings : ImageSearchEvent()
-    object GoToDownloads : ImageSearchEvent()
-//    type state will be in viewmodel to make search better
-}
-
+/* -----------------------------------------------------------
+   VIEWMODEL
+   ----------------------------------------------------------- */
 @HiltViewModel
 class ImageScreenViewModel @Inject constructor(
-    private val imageRepository: ImageRepository
+    private val imageRepository: ImageRepository,
+    private val photoDownloaderDao: PhotoDownloaderDao
 ) : ViewModel() {
-    var state by mutableStateOf<State>(State.ImageSearch)
-        private set
+    private val _uiState = MutableStateFlow(ImageUiState())
+    val uiState: StateFlow<ImageUiState> = _uiState.asStateFlow()
 
-    var imageChooseState by mutableStateOf<ImageChooseEvent>(ImageChooseEvent.Idle)
-        private set
+    // Store API responses with their index
+    private val imageResponseMap = mutableMapOf<Int, APIResponse>()
+    private var imageIndexCounter = 0
 
-    var imageDetailState by mutableStateOf<ImageDetailEvent>(ImageDetailEvent.Idle)
-        private set
+    init {
+        observePreviousSearches()
+    }
 
-    var imageSearchState by mutableStateOf<ImageSearchEvent>(ImageSearchEvent.Idle)
-        private set
+    /**
+     * Main event handler
+     */
+    fun onEvent(event: UiEvent) {
+        when (event) {
+            is UiEvent.OnSearchQueryChange -> {
+                _uiState.update { it.copy(currentSearchQuery = event.query) }
+            }
 
-    // all states in one place
-    var searchHistory by mutableStateOf<List<String>>(emptyList())
-    val suggestion by mutableStateOf(
-        listOf(
-            "Backgrounds",
-            "Fashion", "Nature", "Science", "Education",
-            "Feelings", "Religion", "Places", "Animals", "Sports", "Buildings"
-        )
-    )
+            is UiEvent.OnSearchSubmit -> {
+                if (event.query.isNotBlank()) {
+                    performSearch(event.query.trim())
+                }
+            }
 
+            is UiEvent.OnSuggestionClick -> {
+                performSearch(event.suggestion)
+            }
+
+            is UiEvent.OnPreviousSearchClick -> {
+                performSearch(event.search.previousQuery)
+            }
+
+            is UiEvent.OnDeletePreviousSearch -> {
+                deleteSearch(event.searchId)
+            }
+
+            is UiEvent.OnImageClick -> {
+                _uiState.update {
+                    it.copy(screen = Screen.ImageDetail(event.imageUrl, event.imageIndex))
+                }
+            }
+
+            UiEvent.OnBackPress -> {
+                handleBackPress()
+            }
+
+            is UiEvent.OnDownloadImage -> {
+                downloadImage(event.url)
+            }
+
+            is UiEvent.OnShareImage -> {
+                // Handle sharing - will be implemented in UI layer
+            }
+
+            is UiEvent.OnSetWallpaper -> {
+                // Handle wallpaper - will be implemented in UI layer
+            }
+
+            UiEvent.OnNavigateToSettings -> {
+                // Navigate to settings - implement navigation here
+            }
+
+            UiEvent.OnNavigateToDownloads -> {
+                // Navigate to downloads - implement navigation here
+            }
+
+            UiEvent.ClearError -> {
+                _uiState.update { it.copy(errorMessage = null) }
+            }
+        }
+    }
+
+    fun setCurrentImages(response: Map<Int, APIResponse>, index: Int): List<String> {
+        return response[index]?.hits?.map { it.largeImageURL } ?: emptyList()
+    }
+
+    /**
+     * Perform image search
+     */
+    private fun performSearch(query: String) {
+        viewModelScope.launch {
+            try {
+                _uiState.update {
+                    it.copy(
+                        isSearching = true,
+                        isLoading = true,
+                        currentSearchQuery = query,
+                        errorMessage = null
+                    )
+                }
+
+                // Save search to history
+                saveSearchToHistory(query)
+
+                // Fetch images from repository
+                val response = imageRepository.getImages(query = query)
+
+                // Store response in the local ViewModel map and this will be used directly in screen loding image through coil
+                imageResponseMap[imageResponseMap.size] = response
+
+                println("Here is imageResponce in line no 174 and imageScreenViewModel Please see  ddddddddddddddddddddddddddd ${imageResponseMap.size}")
+                // Extract image URLs from response
+                val listImage = setCurrentImages(imageResponseMap,imageIndexCounter)
+                _uiState.update {
+                    it.copy(
+                        screen = Screen.ImageChoose(query),
+                        currentImages = listImage,
+                        isSearching = false,
+                        isLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.update {
+                    it.copy(
+                        isSearching = false,
+                        isLoading = false,
+                        errorMessage = "Failed to search images: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Handle back press based on current screen
+     */
+    private fun handleBackPress() {
+        val currentScreen = _uiState.value.screen
+        when (currentScreen) {
+            is Screen.ImageDetail -> {
+                // Go back to image choose screen
+                _uiState.update {
+                    it.copy(screen = Screen.ImageChoose(it.currentSearchQuery))
+                }
+            }
+            is Screen.ImageChoose -> {
+                // Go back to search screen
+                _uiState.update {
+                    it.copy(
+                        screen = Screen.ImageSearch,
+                    )
+                }
+            }
+            Screen.ImageSearch -> {
+                // Already at root, do nothing or exit app
+            }
+        }
+    }
+
+    /**
+     * Download image
+     */
+    private fun downloadImage(url: String) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true) }
+
+                val imageData = imageRepository.downloadImage(url)
+                // TODO: Save to file storage
+
+                _uiState.update { it.copy(isLoading = false) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to download image: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Observe previous searches from database
+     */
+    private fun observePreviousSearches() {
+        viewModelScope.launch {
+            photoDownloaderDao.getAllPreviousSearches().collectLatest { searches ->
+                _uiState.update { it.copy(previousSearches = searches) }
+            }
+        }
+    }
+
+    /**
+     * Save search query to history
+     */
+    private fun saveSearchToHistory(query: String) {
+        viewModelScope.launch {
+            try {
+                val search = PreviousSearch(
+                    previousQuery = query
+                )
+                photoDownloaderDao.insertPreviousSearch(search)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Delete search from history
+     */
+    private fun deleteSearch(id: Int) {
+        viewModelScope.launch {
+            try {
+                photoDownloaderDao.deletePreviousSearchById(id)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Get current API response by index
+     */
+    fun getApiResponse(index: Int): APIResponse? {
+        return imageResponseMap[index]
+    }
 }

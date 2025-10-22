@@ -1,6 +1,13 @@
 package com.example.photodownloader.ui.imageSearch
 
-
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,10 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,128 +27,241 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.example.photodownloader.data.local.PreviousSearch
 
 @Composable
 fun HomeScreen(
     navController: NavHostController,
     viewModel: ImageScreenViewModel = hiltViewModel()
 ) {
-    val currentState = viewModel.state
-    when (currentState) {
-        is State.ImageSearch -> {
-            PhotoDownloaderScreen()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Handle back button press
+    BackHandler(enabled = uiState.screen !is Screen.ImageSearch) {
+        viewModel.onEvent(UiEvent.OnBackPress)
+    }
+
+    // Show error snackbar if there's an error
+    if (uiState.errorMessage != null) {
+        LaunchedEffect(uiState.errorMessage) {
+            // Show snackbar or toast
+            // Then clear error
+            viewModel.onEvent(UiEvent.ClearError)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedContent(
+            targetState = uiState.screen,
+            transitionSpec = {
+                slideInHorizontally(
+                    animationSpec = tween(300),
+                    initialOffsetX = { it }
+                ) + fadeIn(tween(300)) togetherWith
+                        slideOutHorizontally(
+                            animationSpec = tween(300),
+                            targetOffsetX = { -it }
+                        ) + fadeOut(tween(300))
+            },
+            label = "screen_transition"
+        ) { screen ->
+            when (screen) {
+                Screen.ImageSearch -> {
+                    ImageSearchScreen(
+                        uiState = uiState,
+                        onEvent = viewModel::onEvent
+                    )
+                }
+
+                is Screen.ImageChoose -> {
+                    ImageChooseScreen(
+                        uiState = uiState,
+                        onEvent = viewModel::onEvent
+                    )
+                }
+
+                is Screen.ImageDetail -> {
+                    ImageDetailScreen(
+                        imageUrl = screen.imageUrl,
+                        uiState = uiState,
+                        onEvent = viewModel::onEvent
+                    )
+                }
+            }
         }
 
-        is State.ImageDetail -> {
-            ImageDetailsScreen(navGraph = navController)
-        }
-
-        is State.ImageChoose -> {
-            SearchResultsScreen()
+        // Global loading indicator
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
         }
     }
 }
 
 @Composable
-fun PhotoDownloaderScreen() {
-    val viewModel: ImageScreenViewModel = hiltViewModel()
-    val currentState = viewModel.imageSearchState
-    when (currentState) {
-        is ImageSearchEvent.Search -> {
-
-        }
-        is ImageSearchEvent.GoToSettings -> {
-
-        }
-
-        is ImageSearchEvent.GoToDownloads -> {
-
-        }
-
-        is ImageSearchEvent.Idle -> {
-            PhotoDownloader()
-        }
-    }
-}
-@Preview
-@Composable
-fun PhotoDownloader() {
+fun ImageSearchScreen(
+    uiState: ImageUiState,
+    onEvent: (UiEvent) -> Unit
+) {
     Scaffold(
-        topBar = { Header() },
-        bottomBar = { BottomNavBar() }
+        topBar = { SearchScreenHeader() },
+        bottomBar = {
+            BottomNavBar(
+                currentScreen = "Search",
+                onNavigateToSettings = { onEvent(UiEvent.OnNavigateToSettings) },
+                onNavigateToDownloads = { onEvent(UiEvent.OnNavigateToDownloads) }
+            )
+        }
     ) { innerPadding ->
-        MainContent(Modifier.padding(innerPadding))
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
+        ) {
+            item {
+                CommonSearchBar(
+                    query = uiState.currentSearchQuery,
+                    isLoading = uiState.isSearching,
+                    onQueryChange = { onEvent(UiEvent.OnSearchQueryChange(it)) },
+                    onSearch = { onEvent(UiEvent.OnSearchSubmit(uiState.currentSearchQuery)) },
+                    showBackButton = false
+                )
+            }
+
+            item {
+                SuggestedSection(
+                    suggestions = uiState.suggestions,
+                    onSuggestionClick = { onEvent(UiEvent.OnSuggestionClick(it)) }
+                )
+            }
+
+            item {
+                if (uiState.previousSearches.isNotEmpty()) {
+                    SearchHistorySection(
+                        searches = uiState.previousSearches,
+                        onSearchClick = { onEvent(UiEvent.OnPreviousSearchClick(it)) },
+                        onDeleteClick = { onEvent(UiEvent.OnDeletePreviousSearch(it)) }
+                    )
+                }
+            }
+        }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+fun ImageSearchScreenPreview() {
+    val sampleUiState = ImageUiState(
+        suggestions = listOf("Nature", "City", "Abstract", "Food"),
+        previousSearches = listOf(
+            PreviousSearch(id = 1, previousQuery = "Sunsets"),
+            PreviousSearch(id = 2, previousQuery = "Mountain landscapes"),
+            PreviousSearch(id = 3, previousQuery = "Ocean waves")
+        ),
+        currentSearchQuery = "preview search",
+        isSearching = false
+    )
+    ImageSearchScreen(
+        uiState = sampleUiState,
+        onEvent = {}
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ImageSearchScreenLoadingPreview() {
+    val sampleUiState = ImageUiState(
+        suggestions = listOf("Nature", "City", "Abstract", "Food"),
+        previousSearches = emptyList(),
+        currentSearchQuery = "loading state",
+        isSearching = true
+    )
+    ImageSearchScreen(
+        uiState = sampleUiState,
+        onEvent = {}
+    )
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Header() {
+fun SearchScreenHeader() {
     TopAppBar(
         title = {
             Text(
                 "Photo Downloader",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.onBackground
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         }
     )
 }
 
 @Composable
-fun MainContent(modifier: Modifier = Modifier) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        item { SearchBar() }
-        item { SuggestedSection(hiltViewModel()) }
-        item { SearchHistorySection() }
-    }
-}
-
-@Composable
-fun SearchBar(
-    isLoading: Boolean = false
+fun CommonSearchBar(
+    query: String,
+    isLoading: Boolean,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onBackPress: (() -> Unit)? = null,
+    showBackButton: Boolean = false
 ) {
-    var query by remember { mutableStateOf("") }
     OutlinedTextField(
         value = query,
-        onValueChange = { query = it },
+        onValueChange = onQueryChange,
         placeholder = { Text("Search for images") },
-        trailingIcon  = {
+        leadingIcon = if (showBackButton && onBackPress != null) {
+            {
+                IconButton(onClick = onBackPress) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            }
+        } else null,
+        trailingIcon = {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp
                 )
             } else {
-                Icon(Icons.Default.Search, contentDescription = null)
+                IconButton(
+                    onClick = onSearch,
+                    enabled = query.isNotBlank()
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = "Search")
+                }
             }
         },
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
         shape = RoundedCornerShape(16.dp),
-        singleLine = true
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        )
     )
 }
 
 @Composable
 fun SuggestedSection(
-    viewModel: ImageScreenViewModel
+    suggestions: List<String>,
+    onSuggestionClick: (String) -> Unit
 ) {
-    val suggestions = viewModel.suggestion
     Column {
         Text(
             "Suggested",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         FlowRow(
@@ -152,7 +270,7 @@ fun SuggestedSection(
         ) {
             suggestions.forEach { label ->
                 AssistChip(
-                    onClick = { /* TODO */ },// for search to change with it
+                    onClick = { onSuggestionClick(label) },
                     label = { Text(label) },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
@@ -166,43 +284,57 @@ fun SuggestedSection(
 
 @Composable
 fun SearchHistorySection(
-    viewModel: ImageScreenViewModel = hiltViewModel()
+    searches: List<PreviousSearch>,
+    onSearchClick: (PreviousSearch) -> Unit,
+    onDeleteClick: (Int) -> Unit
 ) {
-    val history = viewModel.searchHistory
     Column {
         Text(
             "Search History",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            history.forEach { item ->
+            searches.take(10).forEach { search ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { /* TODO */ }
-                        .padding(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(8.dp)
-                            ),
-                        contentAlignment = Alignment.Center
+                            .weight(1f)
+                            .clickable { onSearchClick(search) },
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.History, contentDescription = null, tint = Color.Gray)
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            search.previousQuery,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1
+                        )
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        item,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 1
-                    )
+                    IconButton(onClick = { onDeleteClick(search.id) }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -211,49 +343,33 @@ fun SearchHistorySection(
 
 @Composable
 fun BottomNavBar(
-    isLoading: Boolean = false
+    currentScreen: String,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDownloads: () -> Unit
 ) {
     NavigationBar {
         NavigationBarItem(
-            selected = true,
-            onClick = { },
+            selected = currentScreen == "Search",
+            onClick = { /* Already on search screen */ },
             icon = {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!isLoading) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                Icon(Icons.Default.Search, contentDescription = "Search")
             },
             label = { Text("Search", fontSize = 12.sp) }
         )
         NavigationBarItem(
-            selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.Download, contentDescription = "Downloads") },
+            selected = currentScreen == "Downloads",
+            onClick = onNavigateToDownloads,
+            icon = {
+                Icon(Icons.Default.Download, contentDescription = "Downloads")
+            },
             label = { Text("Downloads", fontSize = 12.sp) }
         )
         NavigationBarItem(
-            selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+            selected = currentScreen == "Settings",
+            onClick = onNavigateToSettings,
+            icon = {
+                Icon(Icons.Default.Settings, contentDescription = "Settings")
+            },
             label = { Text("Settings", fontSize = 12.sp) }
         )
     }
