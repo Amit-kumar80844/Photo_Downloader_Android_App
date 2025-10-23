@@ -1,11 +1,18 @@
 package com.example.photodownloader.ui.imageSearch
 
+import androidx.collection.mutableIntSetOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.photodownloader.data.local.PreviousSearch
 import com.example.photodownloader.data.remote.APIResponse
+import com.example.photodownloader.data.remote.Hit
 import com.example.photodownloader.domain.remote.ImageRepository
 import com.example.photodownloader.domain.room.PhotoDownloaderDao
+import com.example.photodownloader.ui.imageSearch.Screen.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +21,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.collections.mutableMapOf
 
 /* -----------------------------------------------------------
    SCREEN NAVIGATION STATES
@@ -22,14 +28,14 @@ import kotlin.collections.mutableMapOf
 sealed class Screen {
     object ImageSearch : Screen()
     data class ImageChoose(val searchQuery: String) : Screen()
-    data class ImageDetail(val imageUrl: String, val imageIndex: Int) : Screen()
+    data class ImageDetail(val hit: Hit, val imageIndex: Int) : Screen()
 }
 
 /* -----------------------------------------------------------
    UI STATE
    ----------------------------------------------------------- */
 data class ImageUiState(
-    val screen: Screen = Screen.ImageSearch,
+    val screen: Screen = ImageSearch,
     val currentSearchQuery: String = "",
     val isLoading: Boolean = false,
     val isSearching: Boolean = false,
@@ -39,19 +45,21 @@ data class ImageUiState(
         "Feelings", "Religion", "Places", "Animals", "Sports", "Buildings"
     ),
     val previousSearches: List<PreviousSearch> = emptyList(),
-    val currentImages:List<String> = emptyList()
+    val imageResponseMap: Map<Int, APIResponse> = emptyMap(),
+    val currentImages: List<Hit> = emptyList()
 )
 
 /* -----------------------------------------------------------
    UI EVENTS
-   ----------------------------------------------------------- */
+----------------------------------------------------------- */
+
 sealed class UiEvent {
     data class OnSearchQueryChange(val query: String) : UiEvent()
     data class OnSearchSubmit(val query: String) : UiEvent()
     data class OnSuggestionClick(val suggestion: String) : UiEvent()
     data class OnPreviousSearchClick(val search: PreviousSearch) : UiEvent()
     data class OnDeletePreviousSearch(val searchId: Int) : UiEvent()
-    data class OnImageClick(val imageUrl: String, val imageIndex: Int) : UiEvent()
+    data class OnImageClick(val hit: Hit, val imageIndex: Int) : UiEvent()
     object OnBackPress : UiEvent()
     data class OnDownloadImage(val url: String) : UiEvent()
     data class OnShareImage(val url: String) : UiEvent()
@@ -59,6 +67,7 @@ sealed class UiEvent {
     object OnNavigateToSettings : UiEvent()
     object OnNavigateToDownloads : UiEvent()
     object ClearError : UiEvent()
+    object OnClearImage : UiEvent()
 }
 
 /* -----------------------------------------------------------
@@ -72,13 +81,13 @@ class ImageScreenViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ImageUiState())
     val uiState: StateFlow<ImageUiState> = _uiState.asStateFlow()
 
-    // Store API responses with their index
-    private val imageResponseMap = mutableMapOf<Int, APIResponse>()
-    private var imageIndexCounter = 0
+    var choosenImageHit: Pair<Int, Hit?> by mutableStateOf(0 to null)
+
 
     init {
         observePreviousSearches()
     }
+    var imageIndexCounter: Int by mutableIntStateOf(0)
 
     /**
      * Main event handler
@@ -108,8 +117,9 @@ class ImageScreenViewModel @Inject constructor(
             }
 
             is UiEvent.OnImageClick -> {
+                choosenImageHit = Pair(event.imageIndex,event.hit)
                 _uiState.update {
-                    it.copy(screen = Screen.ImageDetail(event.imageUrl, event.imageIndex))
+                    it.copy(screen = ImageDetail(event.hit, event.imageIndex))
                 }
             }
 
@@ -140,11 +150,17 @@ class ImageScreenViewModel @Inject constructor(
             UiEvent.ClearError -> {
                 _uiState.update { it.copy(errorMessage = null) }
             }
-        }
-    }
 
-    fun setCurrentImages(response: Map<Int, APIResponse>, index: Int): List<String> {
-        return response[index]?.hits?.map { it.largeImageURL } ?: emptyList()
+            UiEvent.OnClearImage -> {
+                imageIndexCounter = 0
+                _uiState.update {
+                    it.copy(
+                        imageResponseMap = emptyMap(),
+                        currentImages = emptyList()
+                    )
+                }
+            }
+        }
     }
 
     /**
@@ -168,20 +184,20 @@ class ImageScreenViewModel @Inject constructor(
                 // Fetch images from repository
                 val response = imageRepository.getImages(query = query)
 
-                // Store response in the local ViewModel map and this will be used directly in screen loding image through coil
-                imageResponseMap[imageResponseMap.size] = response
+                // Store response in the map and extract hits
+                val allImages = _uiState.value.currentImages + response.hits
 
-                println("Here is imageResponce in line no 174 and imageScreenViewModel Please see  ddddddddddddddddddddddddddd ${imageResponseMap.size}")
-                // Extract image URLs from response
-                val listImage = setCurrentImages(imageResponseMap,imageIndexCounter)
                 _uiState.update {
                     it.copy(
-                        screen = Screen.ImageChoose(query),
-                        currentImages = listImage,
+                        screen = ImageChoose(query),
+                        imageResponseMap = it.imageResponseMap.plus(Pair(imageIndexCounter++, response)),
+                        currentImages = allImages,
                         isSearching = false,
                         isLoading = false
                     )
                 }
+
+                println("Search completed. Total images: ${allImages.size}")
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiState.update {
@@ -201,21 +217,24 @@ class ImageScreenViewModel @Inject constructor(
     private fun handleBackPress() {
         val currentScreen = _uiState.value.screen
         when (currentScreen) {
-            is Screen.ImageDetail -> {
+            is ImageDetail -> {
                 // Go back to image choose screen
                 _uiState.update {
-                    it.copy(screen = Screen.ImageChoose(it.currentSearchQuery))
+                    it.copy(screen = ImageChoose(it.currentSearchQuery))
                 }
             }
-            is Screen.ImageChoose -> {
+
+            is ImageChoose -> {
                 // Go back to search screen
                 _uiState.update {
                     it.copy(
-                        screen = Screen.ImageSearch,
+                        screen = ImageSearch,
+                        currentImages = emptyList()
                     )
                 }
             }
-            Screen.ImageSearch -> {
+
+            ImageSearch -> {
                 // Already at root, do nothing or exit app
             }
         }
@@ -283,12 +302,5 @@ class ImageScreenViewModel @Inject constructor(
                 e.printStackTrace()
             }
         }
-    }
-
-    /**
-     * Get current API response by index
-     */
-    fun getApiResponse(index: Int): APIResponse? {
-        return imageResponseMap[index]
     }
 }

@@ -4,19 +4,27 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
+import com.example.photodownloader.data.remote.Hit
 
 @Composable
 fun ImageChooseScreen(
@@ -24,10 +32,11 @@ fun ImageChooseScreen(
     onEvent: (UiEvent) -> Unit
 ) {
     Scaffold(
+        modifier = Modifier.background(MaterialTheme.colorScheme.background),
         topBar = {
             Column(
-                modifier = Modifier.padding(5.dp,10.dp)
-            ){
+                modifier = Modifier.padding(5.dp, 10.dp)
+            ) {
                 CommonSearchBar(
                     query = uiState.currentSearchQuery,
                     isLoading = uiState.isSearching,
@@ -66,35 +75,21 @@ fun ImageChooseScreen(
                     )
                 }
             } else {
-                PhotoGrid(
+                PhotoStaggeredGrid(
                     photos = uiState.currentImages,
-                    onImageClick = { url, index ->
-                        onEvent(UiEvent.OnImageClick(url, index))
+                    onImageClick = { hit, index ->
+                        onEvent(UiEvent.OnImageClick(hit, index))
                     }
+                )
+            }
+
+            if (uiState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ImageChooseScreenPreview() {
-    ImageChooseScreen(
-        uiState = ImageUiState(
-            currentSearchQuery = "Kittens",
-            currentImages = listOf(
-                "https://via.placeholder.com/400/FF0000/FFFFFF?Text=Image1",
-                "https://via.placeholder.com/400/00FF00/000000?Text=Image2",
-                "https://via.placeholder.com/400/0000FF/FFFFFF?Text=Image3",
-                "https://via.placeholder.com/400/FFFF00/000000?Text=Image4",
-                "https://via.placeholder.com/400/FF00FF/FFFFFF?Text=Image5",
-                "https://via.placeholder.com/400/00FFFF/000000?Text=Image6"
-            ),
-            isSearching = false
-        ),
-        onEvent = {}
-    )
 }
 
 @Preview(showBackground = true)
@@ -110,25 +105,27 @@ fun ImageChooseScreenEmptyPreview() {
     )
 }
 
-
 @Composable
-fun PhotoGrid(
-    photos: List<String>,
-    onImageClick: (String, Int) -> Unit
+fun PhotoStaggeredGrid(
+    photos: List<Hit>,
+    onImageClick: (Hit, Int) -> Unit
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 150.dp),
+    val gridState = rememberLazyStaggeredGridState()
+
+    LazyVerticalStaggeredGrid(
+        state = gridState,
+        columns = StaggeredGridCells.Adaptive(minSize = 150.dp),
         contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalItemSpacing = 12.dp,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        itemsIndexed(photos) { index, url ->
+        itemsIndexed(photos) { index, hit ->
             PhotoCard(
-                url = url,
-                onClick = { onImageClick(url, index) }
+                hit = hit,
+                onClick = { onImageClick(hit, index) }
             )
         }
     }
@@ -136,13 +133,16 @@ fun PhotoGrid(
 
 @Composable
 fun PhotoCard(
-    url: String,
+    hit: Hit,
     onClick: () -> Unit
 ) {
+    // Calculate aspect ratio from preview dimensions
+    val aspectRatio = hit.previewWidth.toFloat() / hit.previewHeight.toFloat()
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1f)
+            .aspectRatio(aspectRatio)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -152,17 +152,112 @@ fun PhotoCard(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
+            // Use webformatURL for better quality in grid
             Image(
                 painter = rememberAsyncImagePainter(
-                    model = url,
+                    model = hit.webformatURL,
                     error = rememberAsyncImagePainter("https://via.placeholder.com/400")
                 ),
-                contentDescription = null,
+                contentDescription = hit.tags,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp))
             )
+
+            // Gradient overlay at bottom for better text visibility
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f)
+                            )
+                        )
+                    )
+            )
+
+            // Image info at bottom
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+            ) {
+                // Tags
+                Text(
+                    text = hit.tags,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // User and stats
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = hit.user,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    // Likes
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = "Likes",
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = formatNumber(hit.likes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+
+                    // Views
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.RemoveRedEye,
+                            contentDescription = "Views",
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = formatNumber(hit.views),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+// Helper function to format large numbers
+private fun formatNumber(num: Int): String {
+    return when {
+        num >= 1_000_000 -> String.format("%.1fM", num / 1_000_000.0)
+        num >= 1_000 -> String.format("%.1fK", num / 1_000.0)
+        else -> num.toString()
     }
 }
