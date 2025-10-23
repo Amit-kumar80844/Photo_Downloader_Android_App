@@ -45,7 +45,7 @@ data class ImageUiState(
         "Feelings", "Religion", "Places", "Animals", "Sports", "Buildings"
     ),
     val previousSearches: List<PreviousSearch> = emptyList(),
-    val imageResponseMap: Map<Int, APIResponse> = emptyMap(),
+    var imageResponseMap: Map<Int, APIResponse> = emptyMap(),
     val currentImages: List<Hit> = emptyList()
 )
 
@@ -82,7 +82,7 @@ class ImageScreenViewModel @Inject constructor(
     val uiState: StateFlow<ImageUiState> = _uiState.asStateFlow()
 
     var choosenImageHit: Pair<Int, Hit?> by mutableStateOf(0 to null)
-
+    var previousSearchQuery:String by mutableStateOf("")
 
     init {
         observePreviousSearches()
@@ -95,6 +95,13 @@ class ImageScreenViewModel @Inject constructor(
     fun onEvent(event: UiEvent) {
         when (event) {
             is UiEvent.OnSearchQueryChange -> {
+              /*  _uiState.update { it.copy(imageResponseMap = emptyMap()) }
+                imageIndexCounter =0;*/
+               /* _uiState.update {
+                    it.copy(
+                        currentImages = emptyList()
+                    )
+                }*/
                 _uiState.update { it.copy(currentSearchQuery = event.query) }
             }
 
@@ -169,6 +176,14 @@ class ImageScreenViewModel @Inject constructor(
     private fun performSearch(query: String) {
         viewModelScope.launch {
             try {
+                if(previousSearchQuery!=query){
+                    _uiState.update {
+                        it.copy(
+                            currentImages = emptyList()
+                        )
+                    }
+                }
+                previousSearchQuery = query
                 _uiState.update {
                     it.copy(
                         isSearching = true,
@@ -180,7 +195,6 @@ class ImageScreenViewModel @Inject constructor(
 
                 // Save search to history
                 saveSearchToHistory(query)
-
                 // Fetch images from repository
                 val response = imageRepository.getImages(query = query)
 
