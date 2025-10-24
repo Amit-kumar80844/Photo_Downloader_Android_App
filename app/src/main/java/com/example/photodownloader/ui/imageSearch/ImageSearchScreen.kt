@@ -56,13 +56,13 @@ fun HomeScreen(
             targetState = uiState.screen,
             transitionSpec = {
                 slideInHorizontally(
-                    animationSpec = tween(300),
+                    animationSpec = tween(500),
                     initialOffsetX = { it }
                 ) + fadeIn(tween(300)) togetherWith
                         slideOutHorizontally(
                             animationSpec = tween(300),
                             targetOffsetX = { -it }
-                        ) + fadeOut(tween(300))
+                        ) + fadeOut(tween(500))
             },
             label = "screen_transition"
         ) { screen ->
@@ -85,7 +85,8 @@ fun HomeScreen(
                     ImageDetailScreen(
                         hit = viewModel.choosenImageHit.second!!,
                         uiState = uiState,
-                        onEvent = viewModel::onEvent
+                        onEvent = viewModel::onEvent,
+                        viewModel
                     )
                 }
             }

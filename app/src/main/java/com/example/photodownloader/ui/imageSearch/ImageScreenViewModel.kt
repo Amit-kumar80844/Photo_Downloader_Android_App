@@ -1,6 +1,6 @@
 package com.example.photodownloader.ui.imageSearch
 
-import androidx.collection.mutableIntSetOf
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +14,7 @@ import com.example.photodownloader.domain.remote.ImageRepository
 import com.example.photodownloader.domain.room.PhotoDownloaderDao
 import com.example.photodownloader.ui.imageSearch.Screen.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,7 +47,8 @@ data class ImageUiState(
     ),
     val previousSearches: List<PreviousSearch> = emptyList(),
     var imageResponseMap: Map<Int, APIResponse> = emptyMap(),
-    val currentImages: List<Hit> = emptyList()
+    val currentImages: List<Hit> = emptyList(),
+    val downloadImageMessage:String? = null
 )
 
 /* -----------------------------------------------------------
@@ -62,6 +64,7 @@ sealed class UiEvent {
     data class OnImageClick(val hit: Hit, val imageIndex: Int) : UiEvent()
     object OnBackPress : UiEvent()
     data class OnDownloadImage(val url: String) : UiEvent()
+    object ClearDownloadMessage : UiEvent()
     data class OnShareImage(val url: String) : UiEvent()
     data class OnSetWallpaper(val url: String) : UiEvent()
     object OnNavigateToSettings : UiEvent()
@@ -76,7 +79,8 @@ sealed class UiEvent {
 @HiltViewModel
 class ImageScreenViewModel @Inject constructor(
     private val imageRepository: ImageRepository,
-    private val photoDownloaderDao: PhotoDownloaderDao
+    private val photoDownloaderDao: PhotoDownloaderDao,
+    @param:ApplicationContext private val appContext: Context
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ImageUiState())
     val uiState: StateFlow<ImageUiState> = _uiState.asStateFlow()
@@ -95,13 +99,6 @@ class ImageScreenViewModel @Inject constructor(
     fun onEvent(event: UiEvent) {
         when (event) {
             is UiEvent.OnSearchQueryChange -> {
-              /*  _uiState.update { it.copy(imageResponseMap = emptyMap()) }
-                imageIndexCounter =0;*/
-               /* _uiState.update {
-                    it.copy(
-                        currentImages = emptyList()
-                    )
-                }*/
                 _uiState.update { it.copy(currentSearchQuery = event.query) }
             }
 
@@ -164,6 +161,14 @@ class ImageScreenViewModel @Inject constructor(
                     it.copy(
                         imageResponseMap = emptyMap(),
                         currentImages = emptyList()
+                    )
+                }
+            }
+
+            UiEvent.ClearDownloadMessage -> {
+                _uiState.update {
+                    it.copy(
+                        downloadImageMessage = null
                     )
                 }
             }
@@ -260,18 +265,27 @@ class ImageScreenViewModel @Inject constructor(
     private fun downloadImage(url: String) {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isLoading = true) }
+                _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
-                val imageData = imageRepository.downloadImage(url)
-                // TODO: Save to file storage
+                val responseBody = imageRepository.downloadImage(url)
+                val bytes = responseBody.bytes()  // Convert to ByteArray
 
-                _uiState.update { it.copy(isLoading = false) }
-            } catch (e: Exception) {
-                e.printStackTrace()
+                val context = appContext
+
+                val saved = saveImageToGallery(context, bytes)
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "Failed to download image: ${e.localizedMessage}"
+                        downloadImageMessage = if(saved) "Image Downloaded Successfully" else "Image Failed Downloaded",
+                        errorMessage = if (saved) null else "Failed to save image"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Download error: ${e.localizedMessage}"
                     )
                 }
             }

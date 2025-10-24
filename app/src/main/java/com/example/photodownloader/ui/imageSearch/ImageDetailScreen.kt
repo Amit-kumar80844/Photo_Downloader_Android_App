@@ -1,5 +1,6 @@
 package com.example.photodownloader.ui.imageSearch
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,12 +14,17 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalContext
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.photodownloader.data.remote.Hit
@@ -28,7 +34,8 @@ import com.example.photodownloader.data.remote.Hit
 fun ImageDetailScreen(
     hit: Hit,
     uiState: ImageUiState,
-    onEvent: (UiEvent) -> Unit
+    onEvent: (UiEvent) -> Unit,
+    viewModel: ImageScreenViewModel
 ) {
     Scaffold(
         topBar = {
@@ -69,7 +76,17 @@ fun ImageDetailScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+            val context = LocalContext.current
+           if(uiState.downloadImageMessage!=null) {
+               LaunchedEffect(uiState.downloadImageMessage) {
+                   uiState.downloadImageMessage.let {
+                       Toast.makeText(context, uiState.downloadImageMessage, Toast.LENGTH_SHORT)
+                           .show()
+                   }
+                   viewModel.onEvent(UiEvent.ClearDownloadMessage)
+               }
 
+           }
             // Detailed Image Info
             ImageInfoSection(hit = hit)
         }
@@ -261,7 +278,7 @@ fun ImageInfoSection(hit: Hit) {
                 value = hit.type.replaceFirstChar { it.uppercase() }
             )
 
-            // File Size
+        // File Size
             InfoRow(
                 icon = Icons.Default.Storage,
                 label = "File Size",
@@ -416,5 +433,5 @@ fun ImageDetailScreenPreview() {
         webformatURL = "",
         webformatWidth = 640
     )
-    ImageDetailScreen(hit = mockHit, uiState = ImageUiState(), onEvent = {})
+    ImageDetailScreen(hit = mockHit, uiState = ImageUiState(), onEvent = {},viewModel=hiltViewModel())
 }
