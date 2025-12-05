@@ -12,9 +12,7 @@ import retrofit2.http.Query
 interface ApiService {
 
     /* ------------------------------------------------------------
-       🔹 SEARCH IMAGES ENDPOINT
-       Example:
-       https://imagedownloader.duckdns.org/api/search?q=nature&image_type=all&order=popular...
+       https://image-downloader-api-3hog.onrender.com/api/search?q=nature&image_type=all&order=popular...
        ------------------------------------------------------------ */
 
     @GET("api/search")
@@ -61,13 +59,10 @@ interface ApiService {
 
 
     /* ------------------------------------------------------------
-       🔹 DOWNLOAD IMAGE ENDPOINT
-       Example:
-       https://imagedownloader.duckdns.org/api/download?imageUrl=https://cdn.pixabay.com/photo.jpg
+       https://image-downloader-api-3hog.onrender.com/api/download?imageUrl=https://cdn.pixabay.com/photo.jpg
        ------------------------------------------------------------ */
     @GET("api/download")
     suspend fun downloadImage(
-        /** Full image URL you want to download */
         @Query("imageUrl") imageUrl: String
     ): ResponseBody
 }

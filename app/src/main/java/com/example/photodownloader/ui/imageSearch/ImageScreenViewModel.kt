@@ -1,6 +1,7 @@
 package com.example.photodownloader.ui.imageSearch
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -65,7 +66,6 @@ sealed class UiEvent {
     object OnBackPress : UiEvent()
     data class OnDownloadImage(val url: String) : UiEvent()
     object ClearDownloadMessage : UiEvent()
-    data class OnShareImage(val url: String) : UiEvent()
     data class OnSetWallpaper(val url: String) : UiEvent()
     object OnNavigateToSettings : UiEvent()
     object OnNavigateToDownloads : UiEvent()
@@ -135,16 +135,12 @@ class ImageScreenViewModel @Inject constructor(
                 downloadImage(event.url)
             }
 
-            is UiEvent.OnShareImage -> {
-                // Handle sharing - will be implemented in UI layer
-            }
-
             is UiEvent.OnSetWallpaper -> {
                 // Handle wallpaper - will be implemented in UI layer
             }
 
             UiEvent.OnNavigateToSettings -> {
-                // Navigate to settings - implement navigation here
+
             }
 
             UiEvent.OnNavigateToDownloads -> {

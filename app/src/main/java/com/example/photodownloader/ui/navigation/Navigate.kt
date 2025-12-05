@@ -4,12 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.photodownloader.ui.downloads.DownloadImageScreen
 import com.example.photodownloader.ui.imageSearch.HomeScreen
+import com.example.photodownloader.ui.setting.SettingScreen
 
 @Composable
 fun Navigate(
     navController: NavHostController
-){
+) {
     NavHost(
         navController = navController,
         startDestination = NavGraph.ImageSearch.route
@@ -19,6 +21,14 @@ fun Navigate(
         }*/
         composable(route = NavGraph.ImageSearch.route) {
             HomeScreen(navController = navController)
+        }
+        composable(route = NavGraph.Setting.route) {
+            SettingScreen(navController)
+        }
+        composable(route = NavGraph.Downloads.route) {
+            DownloadImageScreen(
+                navController
+            )
         }
     }
 }

@@ -110,6 +110,7 @@ dependencies {
 
     // Hilt (DI)
     implementation(libs.hilt.android)
+    implementation(libs.room.ktx)
     ksp(libs.hilt.compiler)
 
     // Room(local database)

@@ -10,14 +10,45 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import com.example.photodownloader.data.local.PreviousSearch
 
 @Composable
@@ -70,7 +102,8 @@ fun HomeScreen(
                 Screen.ImageSearch -> {
                     ImageSearchScreen(
                         uiState = uiState,
-                        onEvent = viewModel::onEvent
+                        onEvent = viewModel::onEvent,
+                        navHostController = navController
                     )
                 }
 
@@ -108,6 +141,7 @@ fun HomeScreen(
 
 @Composable
 fun ImageSearchScreen(
+    navHostController: NavHostController,
     uiState: ImageUiState,
     onEvent: (UiEvent) -> Unit
 ) {
@@ -115,9 +149,12 @@ fun ImageSearchScreen(
         topBar = { SearchScreenHeader() },
         bottomBar = {
             BottomNavBar(
+                onSearch = { onEvent(UiEvent.OnSearchSubmit(uiState.currentSearchQuery)) },
                 currentScreen = "Search",
-                onNavigateToSettings = { onEvent(UiEvent.OnNavigateToSettings) },
-                onNavigateToDownloads = { onEvent(UiEvent.OnNavigateToDownloads) }
+                onNavigateToSettings = {
+                    navHostController.navigate("Setting")
+                },
+                onNavigateToDownloads = { navHostController.navigate("Downloads") }
             )
         }
     ) { innerPadding ->
@@ -172,9 +209,11 @@ fun ImageSearchScreenPreview() {
         currentSearchQuery = "preview search",
         isSearching = false
     )
+    val navController: NavHostController = rememberNavController()
     ImageSearchScreen(
         uiState = sampleUiState,
-        onEvent = {}
+        onEvent = {},
+        navHostController =navController
     )
 }
 
@@ -187,9 +226,11 @@ fun ImageSearchScreenLoadingPreview() {
         currentSearchQuery = "loading state",
         isSearching = true
     )
+    val navController: NavHostController = rememberNavController()
     ImageSearchScreen(
         uiState = sampleUiState,
-        onEvent = {}
+        onEvent = {},
+        navHostController =navController
     )
 }
 
@@ -343,6 +384,7 @@ fun SearchHistorySection(
 
 @Composable
 fun BottomNavBar(
+    onSearch: () -> Unit,
     currentScreen: String,
     onNavigateToSettings: () -> Unit,
     onNavigateToDownloads: () -> Unit
@@ -350,7 +392,7 @@ fun BottomNavBar(
     NavigationBar {
         NavigationBarItem(
             selected = currentScreen == "Search",
-            onClick = { /* Already on search screen */ },
+            onClick = onSearch,
             icon = {
                 Icon(Icons.Default.Search, contentDescription = "Search")
             },

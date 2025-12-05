@@ -1,5 +1,8 @@
 package com.example.photodownloader.ui.imageSearch
 
+import android.app.WallpaperManager
+import android.content.Intent
+import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,7 +17,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,10 +26,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.photodownloader.data.remote.Hit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +43,7 @@ fun ImageDetailScreen(
     onEvent: (UiEvent) -> Unit,
     viewModel: ImageScreenViewModel
 ) {
+    val context = LocalContext.current
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,8 +78,35 @@ fun ImageDetailScreen(
             // Action Buttons
             ActionButtons(
                 onDownload = { onEvent(UiEvent.OnDownloadImage(hit.largeImageURL)) },
-                onShare = { onEvent(UiEvent.OnShareImage(hit.largeImageURL)) },
-                onSetWallpaper = { onEvent(UiEvent.OnSetWallpaper(hit.largeImageURL)) }
+                onShare = {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        putExtra(Intent.EXTRA_TEXT, hit.largeImageURL)
+                        type = "text/plain"
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share Image"))
+                },
+
+                onSetWallpaper = {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val url = URL(hit.largeImageURL)
+                            val bitmap = BitmapFactory.decodeStream(url.openStream())
+
+                            val wm = WallpaperManager.getInstance(context)
+                            wm.setBitmap(bitmap)
+
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "Wallpaper Applied!", Toast.LENGTH_SHORT).show()
+                            }
+
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+
             )
 
             Spacer(modifier = Modifier.height(16.dp))

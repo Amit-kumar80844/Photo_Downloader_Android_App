@@ -13,7 +13,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    private const val BASE_URL = "https://imagedownloader.duckdns.org/"
+    private const val BASE_URL = "https://image-downloader-api-3hog.onrender.com/"
 
     @Provides
     @Singleton

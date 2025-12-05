@@ -5,4 +5,6 @@ sealed class NavGraph(
 ) {
 /*    data object Splash : NavGraph("Splash")*/
     data object ImageSearch : NavGraph("HomeScreen")
+    data object Setting : NavGraph("Setting")
+    data object Downloads: NavGraph("Downloads")
 }

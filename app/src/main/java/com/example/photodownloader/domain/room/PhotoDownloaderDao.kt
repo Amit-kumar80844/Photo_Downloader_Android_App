@@ -6,6 +6,7 @@ import androidx.room.Query
 import androidx.room.OnConflictStrategy
 import com.example.photodownloader.data.local.DownloadedImage
 import com.example.photodownloader.data.local.PreviousSearch
+import com.example.photodownloader.data.local.Setting
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -36,4 +37,11 @@ interface PhotoDownloaderDao {
     @Query("DELETE FROM previous_search WHERE id = :id")
     suspend fun deletePreviousSearchById(id: Int)
 
+    // -----------------Settings-------------------------
+
+    @Query("SELECT * FROM Setting_ WHERE id =1")
+    suspend fun getAllSettingData():Setting
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun save(settings: Setting)
 }

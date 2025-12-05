@@ -16,3 +16,13 @@ data class PreviousSearch(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val previousQuery: String
 )
+
+@Entity(tableName = "Setting_")
+data class Setting(
+    @PrimaryKey val id: Int = 1,
+    val safeSearch:Boolean,
+    val onlyEditorsChoice:Boolean,
+    val minHeight:Int,
+    val minWidth:Int,
+    val perPage:Int,
+)

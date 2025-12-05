@@ -20,11 +20,15 @@ object DatabaseDao {
             context.applicationContext,
             AppDatabase::class.java,
             "app_database"
-        ).build()
+
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
     fun providePhotoDownloderDao(database: AppDatabase): PhotoDownloaderDao {
         return database.photoDownloaderDao()
     }
+
 }
