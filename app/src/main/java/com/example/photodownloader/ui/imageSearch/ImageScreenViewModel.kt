@@ -197,7 +197,26 @@ class ImageScreenViewModel @Inject constructor(
                 // Save search to history
                 saveSearchToHistory(query)
                 // Fetch images from repository
-                val response = imageRepository.getImages(query = query)
+           /*     val response = imageRepository.getImages(query = query)*/
+                val setting = runCatching {
+                    photoDownloaderDao.getAllSettingData()
+                }.getOrNull()
+
+                val response = if (setting == null) {
+                    // No settings saved → do default API call
+                    imageRepository.getImages(query)
+                } else {
+                    // Use saved settings
+                    imageRepository.getImages(
+                        query = query,
+                        perPage = setting.perPage,
+                        minWidth = setting.minWidth,
+                        minHeight = setting.minHeight,
+                        safeSearch = setting.safeSearch,
+                        editorsChoice = setting.onlyEditorsChoice
+                    )
+                }
+
 
                 // Store response in the map and extract hits
                 val allImages = _uiState.value.currentImages + response.hits

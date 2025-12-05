@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.photodownloader.data.local.Setting
 import com.example.photodownloader.domain.room.PhotoDownloaderDao
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 // ---------------- UiState ----------------
@@ -67,13 +69,18 @@ class SettingsViewModel @Inject constructor(
 
     private fun loadSettings() {
         viewModelScope.launch {
+            setLoading()
             try {
-                setLoading()
-                val savedSetting = photoDownloaderDao.getAllSettingData()
+                // 1) Try to load existing setting on IO dispatcher
+                val savedSetting = withContext(Dispatchers.IO) {
+                    photoDownloaderDao.getAllSettingData()
+                }
 
                 if (savedSetting != null) {
+                    // Use loaded setting
                     _settings.value = savedSetting
                 } else {
+                    // 2) Not found → create default and save it on IO
                     val defaultSetting = Setting(
                         id = 1,
                         safeSearch = true,
@@ -82,16 +89,29 @@ class SettingsViewModel @Inject constructor(
                         minWidth = 0,
                         perPage = 20
                     )
-                    photoDownloaderDao.save(defaultSetting)
-                    _settings.value = defaultSetting
+
+                    withContext(Dispatchers.IO) {
+                        // Save default to DB
+                        photoDownloaderDao.save(defaultSetting)
+                    }
+
+                    // 3) Re-read from DB (preferred) to make sure what we show is exactly what's stored
+                    val reloaded = withContext(Dispatchers.IO) {
+                        photoDownloaderDao.getAllSettingData()
+                    }
+
+                    // If for some reason reloaded is null, fall back to the default object we created
+                    _settings.value = reloaded ?: defaultSetting
                 }
+
                 setIdle()
             } catch (e: Exception) {
                 Log.e("Settings", "Error loading settings", e)
-                setError("Failed to load settings")
+                setError("Failed to load settings: ${e.localizedMessage ?: e}")
             }
         }
     }
+
 
     // ----- Save Custom Setting -----
 

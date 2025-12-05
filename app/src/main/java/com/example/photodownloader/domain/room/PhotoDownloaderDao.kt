@@ -40,7 +40,7 @@ interface PhotoDownloaderDao {
     // -----------------Settings-------------------------
 
     @Query("SELECT * FROM Setting_ WHERE id =1")
-    suspend fun getAllSettingData():Setting
+    suspend fun getAllSettingData():Setting?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun save(settings: Setting)
